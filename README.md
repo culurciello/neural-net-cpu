@@ -48,7 +48,71 @@ Install Silicon Compiler:
 pip install siliconcompiler
 ```
 
+Install openroad on OS X
 
+Install Lemon from: https://github.com/The-OpenROAD-Project/lemon-graph
+
+Install CUDD from: https://github.com/The-OpenROAD-Project/cudd
+
+```
+./configure
+make install
+```
+
+```
+brew install boost swig cmake googletest spdlog fmt yaml-cpp eigen@3 libomp flex bison tcl-tk@8
+
+rm -rf build
+mkdir build
+
+TCL_PREFIX="/opt/homebrew/opt/tcl-tk@8"
+FLEX_PREFIX="/opt/homebrew/opt/flex"
+
+cmake -S . -B build \
+  -DCMAKE_BUILD_TYPE=Release \
+  -DTCL_LIBRARY="${TCL_PREFIX}/lib/libtcl8.6.dylib" \
+  -DTCL_HEADER="${TCL_PREFIX}/include/tcl.h" \
+  -DFLEX_INCLUDE_DIR="${FLEX_PREFIX}/include"
+cmake --build build -j12
+```
+
+
+Version check fails
+
+modify:
+
+`nano /home/culurciello/.pyenv/versions/3.12.9/lib/python3.12/site-packages/siliconcompiler/tools/openroad/__init__.py`
+
+with:
+
+```
+    def parse_version(self, stdout):
+        # stdout will be in one of the following forms:
+        # - 1 08de3b46c71e329a10aa4e753dcfeba2ddf54ddd
+        # - 1 v2.0-880-gd1c7001ad
+        # - v2.0-1862-g0d785bd84
+        # - 26Q1-270 from EC? 
+
+        # strip off the "1" prefix if it's there
+        version = stdout.split()[-1]
+        #print(version)
+        #crap
+
+        pieces = version.split('-')
+        if len(pieces) > 1:
+            # strip off the hash in the new version style
+            #r='-'.join(pieces[:-1])
+            #print(r)
+            return '2.0-17598' #'-'.join(pieces[:-1])
+        else:
+            return '2.0-17598'  #pieces[0]
+
+    def normalize_version(self, version):
+        if '.' in version:
+            return '2.0-17598' #version.lstrip('v')
+        else:
+            return '2.0-17598'
+```
 
 ## Examples
 
