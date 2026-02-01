@@ -48,7 +48,6 @@ Install Silicon Compiler:
 pip install siliconcompiler
 ```
 
-Install openroad on OS X
 
 Install Lemon from: https://github.com/The-OpenROAD-Project/lemon-graph
 
@@ -60,7 +59,7 @@ make install
 ```
 
 ```
-brew install boost swig cmake googletest spdlog fmt yaml-cpp eigen@3 libomp flex bison tcl-tk@8
+brew install boost swig cmake scip googletest spdlog fmt yaml-cpp eigen@3 libomp flex bison tcl-tk@8
 
 rm -rf build
 mkdir build
@@ -72,7 +71,9 @@ cmake -S . -B build \
   -DCMAKE_BUILD_TYPE=Release \
   -DTCL_LIBRARY="${TCL_PREFIX}/lib/libtcl8.6.dylib" \
   -DTCL_HEADER="${TCL_PREFIX}/include/tcl.h" \
-  -DFLEX_INCLUDE_DIR="${FLEX_PREFIX}/include"
+  -DFLEX_INCLUDE_DIR="${FLEX_PREFIX}/include" \
+  -DCMAKE_CXX_FLAGS="-DBOOST_STACKTRACE_GNU_SOURCE_NOT_REQUIRED" \
+  -DCMAKE_C_FLAGS="-DBOOST_STACKTRACE_GNU_SOURCE_NOT_REQUIRED"
 cmake --build build -j12
 ```
 

@@ -14,7 +14,7 @@ if __name__ == '__main__':
   project = ASIC(design)                                 # create project
   project.add_fileset(["rtl", "sdc"])                    # enable filesets
   skywater130_demo(project)                              # load a pre-defined target
-#   project.option.set_remote(True)                        # enable remote execution
+  project.option.set_remote(True)                        # enable remote execution
   project.run()                                          # run compilation
   project.summary()                                      # print summary
   project.show()                                         # show layout

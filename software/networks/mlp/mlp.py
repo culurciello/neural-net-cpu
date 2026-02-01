@@ -58,18 +58,3 @@ if __name__ == "__main__":
     torch.save(model.state_dict(), PATH)
 
     print(f"Model saved successfully to {PATH}")
-
-    if os.environ.get("EXPORT_WEIGHTS_PY", "0") == "1":
-        export_weights_py(Path(__file__).with_name("mlp_weights.py"), seed=0)
-
-
-# # reload later:
-
-# # 1. Re-create the model structure
-# loaded_model = mlp_c1()
-
-# # 2. Load the saved weights
-# loaded_model.load_state_dict(torch.load(PATH))
-
-# # 3. Set to evaluation mode if you are doing inference
-# loaded_model.eval()
