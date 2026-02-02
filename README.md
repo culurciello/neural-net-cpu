@@ -47,7 +47,7 @@ This will load the trained model, show 4 random images from the test set, and pr
 - `bram.sv`: A generic BRAM module.
 - `timescale.vh`: Timescale definition for simulation.
 - `mlp_tb.sv`: A testbench for the MLP.
-- `scripts/extract_weights.py`: A Python script to extract weights and biases from the trained PyTorch model.
+- `extract_weights.py`: A Python script to extract weights and biases from the trained PyTorch model.
 - `*.hex`: Hex files containing the weights, biases, and a dummy input for simulation.
 
 #### Prerequisites
@@ -69,7 +69,7 @@ First, make sure you have the trained model file `software/cifar-mlp/cifar_mlp.p
 To extract the weights, run the following command from the root of the project:
 
 ```bash
-python hardware/cifar-mlp/scripts/extract_weights.py
+python software/cifar-mlp/extract_weights.py
 ```
 
 This will generate the `.hex` files for weights and biases in the `hardware/cifar-mlp` directory.

@@ -4,15 +4,16 @@
 module bram #(
     parameter DATA_WIDTH = 16,
     parameter DEPTH = 1024,
-    parameter MEM_FILE = "" // Add back MEM_FILE
+    parameter MEM_FILE = "", // Add back MEM_FILE
+    parameter ADDR_WIDTH = (DEPTH <= 1) ? 1 : $clog2(DEPTH)
 ) (
     input logic clk,
     input logic rden,
-    input logic [$clog2(DEPTH)-1:0] rdaddr,
+    input logic [ADDR_WIDTH-1:0] rdaddr,
     output logic [DATA_WIDTH-1:0] q,
     // Add write ports
     input logic wren,
-    input logic [$clog2(DEPTH)-1:0] wraddr,
+    input logic [ADDR_WIDTH-1:0] wraddr,
     input logic [DATA_WIDTH-1:0] wdata
 );
 

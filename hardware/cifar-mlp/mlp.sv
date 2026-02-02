@@ -3,6 +3,7 @@
 module mlp #(
     parameter DATA_WIDTH = 16,
     parameter FRAC_BITS = 8,
+    parameter VEC = 16,
     parameter INPUT_DEPTH = 3072,
     parameter L1_OUTPUT_DEPTH = 512,
     parameter L2_OUTPUT_DEPTH = 256,
@@ -21,83 +22,92 @@ module mlp #(
     input logic start,
     output logic done
 );
-    // Layer 1
-    localparam L1_WEIGHTS_DEPTH = INPUT_DEPTH * L1_OUTPUT_DEPTH;
-    // Layer 2
-    localparam L2_WEIGHTS_DEPTH = L1_OUTPUT_DEPTH * L2_OUTPUT_DEPTH;
-    // Layer 3
-    localparam L3_WEIGHTS_DEPTH = L2_OUTPUT_DEPTH * L3_OUTPUT_DEPTH;
+    // Vector depths
+    localparam INPUT_VEC_DEPTH = (INPUT_DEPTH + VEC - 1) / VEC;
+    localparam L1_OUTPUT_VEC_DEPTH = (L1_OUTPUT_DEPTH + VEC - 1) / VEC;
+    localparam L2_OUTPUT_VEC_DEPTH = (L2_OUTPUT_DEPTH + VEC - 1) / VEC;
+    localparam L3_OUTPUT_VEC_DEPTH = (L3_OUTPUT_DEPTH + VEC - 1) / VEC;
+
+    // Layer weights depths (vectorized input dimension)
+    localparam L1_WEIGHTS_DEPTH = INPUT_VEC_DEPTH * L1_OUTPUT_DEPTH;
+    localparam L2_INPUT_VEC_DEPTH = (L1_OUTPUT_DEPTH + VEC - 1) / VEC;
+    localparam L2_WEIGHTS_DEPTH = L2_INPUT_VEC_DEPTH * L2_OUTPUT_DEPTH;
+    localparam L3_INPUT_VEC_DEPTH = (L2_OUTPUT_DEPTH + VEC - 1) / VEC;
+    localparam L3_WEIGHTS_DEPTH = L3_INPUT_VEC_DEPTH * L3_OUTPUT_DEPTH;
 
     // Address widths derived from depths
-    localparam INPUT_ADDR_WIDTH = $clog2(INPUT_DEPTH);
-    localparam L1_OUTPUT_ADDR_WIDTH = $clog2(L1_OUTPUT_DEPTH);
-    localparam L2_OUTPUT_ADDR_WIDTH = $clog2(L2_OUTPUT_DEPTH);
-    localparam L3_OUTPUT_ADDR_WIDTH = $clog2(L3_OUTPUT_DEPTH);
-    localparam L1_WEIGHTS_ADDR_WIDTH = $clog2(L1_WEIGHTS_DEPTH);
-    localparam L2_WEIGHTS_ADDR_WIDTH = $clog2(L2_WEIGHTS_DEPTH);
-    localparam L3_WEIGHTS_ADDR_WIDTH = $clog2(L3_WEIGHTS_DEPTH);
+    localparam INPUT_ADDR_WIDTH = (INPUT_VEC_DEPTH <= 1) ? 1 : $clog2(INPUT_VEC_DEPTH);
+    localparam L1_OUTPUT_ADDR_WIDTH = (L1_OUTPUT_VEC_DEPTH <= 1) ? 1 : $clog2(L1_OUTPUT_VEC_DEPTH);
+    localparam L2_OUTPUT_ADDR_WIDTH = (L2_OUTPUT_VEC_DEPTH <= 1) ? 1 : $clog2(L2_OUTPUT_VEC_DEPTH);
+    localparam L3_OUTPUT_ADDR_WIDTH = (L3_OUTPUT_VEC_DEPTH <= 1) ? 1 : $clog2(L3_OUTPUT_VEC_DEPTH);
+    localparam L1_BIAS_ADDR_WIDTH = (L1_OUTPUT_DEPTH <= 1) ? 1 : $clog2(L1_OUTPUT_DEPTH);
+    localparam L2_BIAS_ADDR_WIDTH = (L2_OUTPUT_DEPTH <= 1) ? 1 : $clog2(L2_OUTPUT_DEPTH);
+    localparam L3_BIAS_ADDR_WIDTH = (L3_OUTPUT_DEPTH <= 1) ? 1 : $clog2(L3_OUTPUT_DEPTH);
+    localparam L1_WEIGHTS_ADDR_WIDTH = (L1_WEIGHTS_DEPTH <= 1) ? 1 : $clog2(L1_WEIGHTS_DEPTH);
+    localparam L2_WEIGHTS_ADDR_WIDTH = (L2_WEIGHTS_DEPTH <= 1) ? 1 : $clog2(L2_WEIGHTS_DEPTH);
+    localparam L3_WEIGHTS_ADDR_WIDTH = (L3_WEIGHTS_DEPTH <= 1) ? 1 : $clog2(L3_WEIGHTS_DEPTH);
 
 
     // Signals for BRAMs and layer connections
     // Input BRAM
     logic [INPUT_ADDR_WIDTH-1:0] input_bram_rdaddr_l1;
-    logic [DATA_WIDTH-1:0] input_bram_q_l1;
+    logic [VEC*DATA_WIDTH-1:0] input_bram_q_l1;
 
     // Layer 1 outputs to L1_OUT BRAM
     logic [L1_OUTPUT_ADDR_WIDTH-1:0] l1_output_wraddr;
-    logic [DATA_WIDTH-1:0] l1_output_wdata;
+    logic [VEC*DATA_WIDTH-1:0] l1_output_wdata;
     logic l1_output_wren;
     logic [L1_OUTPUT_ADDR_WIDTH-1:0] l1_output_rdaddr_l2; // Read address for Layer 2
-    logic [DATA_WIDTH-1:0] l1_output_q_l2;         // Read data for Layer 2
+    logic [VEC*DATA_WIDTH-1:0] l1_output_q_l2;         // Read data for Layer 2
 
     // Layer 1 weights and biases
     logic [L1_WEIGHTS_ADDR_WIDTH-1:0] l1_weights_rdaddr;
-    logic [DATA_WIDTH-1:0] l1_weights_q;
-    logic [L1_OUTPUT_ADDR_WIDTH-1:0] l1_biases_rdaddr;
+    logic [VEC*DATA_WIDTH-1:0] l1_weights_q;
+    logic [L1_BIAS_ADDR_WIDTH-1:0] l1_biases_rdaddr;
     logic [DATA_WIDTH-1:0] l1_biases_q;
 
     // Layer 2 outputs to L2_OUT BRAM
     logic [L2_OUTPUT_ADDR_WIDTH-1:0] l2_output_wraddr;
-    logic [DATA_WIDTH-1:0] l2_output_wdata;
+    logic [VEC*DATA_WIDTH-1:0] l2_output_wdata;
     logic l2_output_wren;
     logic [L2_OUTPUT_ADDR_WIDTH-1:0] l2_output_rdaddr_l3; // Read address for Layer 3
-    logic [DATA_WIDTH-1:0] l2_output_q_l3;         // Read data for Layer 3
+    logic [VEC*DATA_WIDTH-1:0] l2_output_q_l3;         // Read data for Layer 3
 
     // Layer 2 weights and biases
     logic [L2_WEIGHTS_ADDR_WIDTH-1:0] l2_weights_rdaddr;
-    logic [DATA_WIDTH-1:0] l2_weights_q;
-    logic [L2_OUTPUT_ADDR_WIDTH-1:0] l2_biases_rdaddr;
+    logic [VEC*DATA_WIDTH-1:0] l2_weights_q;
+    logic [L2_BIAS_ADDR_WIDTH-1:0] l2_biases_rdaddr;
     logic [DATA_WIDTH-1:0] l2_biases_q;
     logic [DATA_WIDTH-1:0] l2_biases_bram_q;
 
     // Layer 3 outputs to L3_OUT BRAM (final output)
     logic [L3_OUTPUT_ADDR_WIDTH-1:0] l3_output_wraddr;
-    logic [DATA_WIDTH-1:0] l3_output_wdata;
+    logic [VEC*DATA_WIDTH-1:0] l3_output_wdata;
     logic l3_output_wren;
     logic [L3_OUTPUT_ADDR_WIDTH-1:0] l3_output_rdaddr_final;
-    logic [DATA_WIDTH-1:0] l3_output_q_final_element; // Renamed to reflect single element read
+    logic [VEC*DATA_WIDTH-1:0] l3_output_q_final_element; // Packed read
 
     // Layer 3 weights and biases
     logic [L3_WEIGHTS_ADDR_WIDTH-1:0] l3_weights_rdaddr;
-    logic [DATA_WIDTH-1:0] l3_weights_q;
-    logic [L3_OUTPUT_ADDR_WIDTH-1:0] l3_biases_rdaddr;
+    logic [VEC*DATA_WIDTH-1:0] l3_weights_q;
+    logic [L3_BIAS_ADDR_WIDTH-1:0] l3_biases_rdaddr;
     logic [DATA_WIDTH-1:0] l3_biases_q;
     logic [DATA_WIDTH-1:0] l3_biases_bram_q;
 
 
     // BRAM instances
     // Input BRAM (read by Layer 1)
-    bram #(.DATA_WIDTH(DATA_WIDTH), .DEPTH(INPUT_DEPTH), .MEM_FILE(INPUT_FILE)) input_bram_inst (
+    bram #(.DATA_WIDTH(VEC*DATA_WIDTH), .DEPTH(INPUT_VEC_DEPTH), .MEM_FILE(INPUT_FILE)) input_bram_inst (
         .clk(clk), .rden(1'b1), .rdaddr(input_bram_rdaddr_l1), .q(input_bram_q_l1),
         .wren(1'b0), .wraddr('0), .wdata('0) // Read-only BRAM for input
     );
     // Layer 1 Output BRAM (written by L1, read by L2)
-    bram #(.DATA_WIDTH(DATA_WIDTH), .DEPTH(L1_OUTPUT_DEPTH), .MEM_FILE("")) l1_output_bram_inst (
+    bram #(.DATA_WIDTH(VEC*DATA_WIDTH), .DEPTH(L1_OUTPUT_VEC_DEPTH), .MEM_FILE("")) l1_output_bram_inst (
         .clk(clk), .rden(1'b1), .rdaddr(l1_output_rdaddr_l2), .q(l1_output_q_l2),
         .wren(l1_output_wren), .wraddr(l1_output_wraddr), .wdata(l1_output_wdata)
     );
     // Layer 1 Weights BRAM
-    bram #(.DATA_WIDTH(DATA_WIDTH), .DEPTH(L1_WEIGHTS_DEPTH), .MEM_FILE(FC1_WEIGHTS_FILE)) l1_weights_bram_inst (
+    bram #(.DATA_WIDTH(VEC*DATA_WIDTH), .DEPTH(L1_WEIGHTS_DEPTH), .MEM_FILE(FC1_WEIGHTS_FILE)) l1_weights_bram_inst (
         .clk(clk), .rden(1'b1), .rdaddr(l1_weights_rdaddr), .q(l1_weights_q),
         .wren(1'b0), .wraddr('0), .wdata('0) // Read-only
     );
@@ -107,12 +117,12 @@ module mlp #(
         .wren(1'b0), .wraddr('0), .wdata('0) // Read-only
     );
     // Layer 2 Output BRAM (written by L2, read by L3)
-    bram #(.DATA_WIDTH(DATA_WIDTH), .DEPTH(L2_OUTPUT_DEPTH), .MEM_FILE("")) l2_output_bram_inst (
+    bram #(.DATA_WIDTH(VEC*DATA_WIDTH), .DEPTH(L2_OUTPUT_VEC_DEPTH), .MEM_FILE("")) l2_output_bram_inst (
         .clk(clk), .rden(1'b1), .rdaddr(l2_output_rdaddr_l3), .q(l2_output_q_l3),
         .wren(l2_output_wren), .wraddr(l2_output_wraddr), .wdata(l2_output_wdata)
     );
     // Layer 2 Weights BRAM
-    bram #(.DATA_WIDTH(DATA_WIDTH), .DEPTH(L2_WEIGHTS_DEPTH), .MEM_FILE(FC2_WEIGHTS_FILE)) l2_weights_bram_inst (
+    bram #(.DATA_WIDTH(VEC*DATA_WIDTH), .DEPTH(L2_WEIGHTS_DEPTH), .MEM_FILE(FC2_WEIGHTS_FILE)) l2_weights_bram_inst (
         .clk(clk), .rden(1'b1), .rdaddr(l2_weights_rdaddr), .q(l2_weights_q),
         .wren(1'b0), .wraddr('0), .wdata('0) // Read-only
     );
@@ -122,12 +132,12 @@ module mlp #(
         .wren(1'b0), .wraddr('0), .wdata('0) // Read-only
     );
     // Layer 3 Output BRAM (written by L3, read for final output)
-    bram #(.DATA_WIDTH(DATA_WIDTH), .DEPTH(L3_OUTPUT_DEPTH), .MEM_FILE("")) l3_output_bram_inst (
+    bram #(.DATA_WIDTH(VEC*DATA_WIDTH), .DEPTH(L3_OUTPUT_VEC_DEPTH), .MEM_FILE("")) l3_output_bram_inst (
         .clk(clk), .rden(1'b1), .rdaddr(l3_output_rdaddr_final), .q(l3_output_q_final_element),
         .wren(l3_output_wren), .wraddr(l3_output_wraddr), .wdata(l3_output_wdata)
     );
     // Layer 3 Weights BRAM
-    bram #(.DATA_WIDTH(DATA_WIDTH), .DEPTH(L3_WEIGHTS_DEPTH), .MEM_FILE(FC3_WEIGHTS_FILE)) l3_weights_bram_inst (
+    bram #(.DATA_WIDTH(VEC*DATA_WIDTH), .DEPTH(L3_WEIGHTS_DEPTH), .MEM_FILE(FC3_WEIGHTS_FILE)) l3_weights_bram_inst (
         .clk(clk), .rden(1'b1), .rdaddr(l3_weights_rdaddr), .q(l3_weights_q),
         .wren(1'b0), .wraddr('0), .wdata('0) // Read-only
     );
@@ -143,7 +153,7 @@ module mlp #(
 
     // Layer instances
     layer #(
-        .INPUT_DEPTH(INPUT_DEPTH), .OUTPUT_DEPTH(L1_OUTPUT_DEPTH), .DATA_WIDTH(DATA_WIDTH), .FRAC_BITS(FRAC_BITS)
+        .INPUT_DEPTH(INPUT_DEPTH), .OUTPUT_DEPTH(L1_OUTPUT_DEPTH), .DATA_WIDTH(DATA_WIDTH), .FRAC_BITS(FRAC_BITS), .VEC(VEC)
     ) layer1 (
         .clk(clk), .rst(rst), .start(start_l1), .done(done_l1),
         .input_rdaddr(input_bram_rdaddr_l1), .input_q(input_bram_q_l1),
@@ -153,7 +163,7 @@ module mlp #(
     );
 
     layer #(
-        .INPUT_DEPTH(L1_OUTPUT_DEPTH), .OUTPUT_DEPTH(L2_OUTPUT_DEPTH), .DATA_WIDTH(DATA_WIDTH), .FRAC_BITS(FRAC_BITS)
+        .INPUT_DEPTH(L1_OUTPUT_DEPTH), .OUTPUT_DEPTH(L2_OUTPUT_DEPTH), .DATA_WIDTH(DATA_WIDTH), .FRAC_BITS(FRAC_BITS), .VEC(VEC)
     ) layer2 (
         .clk(clk), .rst(rst), .start(start_l2), .done(done_l2),
         .input_rdaddr(l1_output_rdaddr_l2), .input_q(l1_output_q_l2),
@@ -163,7 +173,7 @@ module mlp #(
     );
 
     layer #(
-        .INPUT_DEPTH(L2_OUTPUT_DEPTH), .OUTPUT_DEPTH(L3_OUTPUT_DEPTH), .DATA_WIDTH(DATA_WIDTH), .FRAC_BITS(FRAC_BITS)
+        .INPUT_DEPTH(L2_OUTPUT_DEPTH), .OUTPUT_DEPTH(L3_OUTPUT_DEPTH), .DATA_WIDTH(DATA_WIDTH), .FRAC_BITS(FRAC_BITS), .VEC(VEC)
     ) layer3 (
         .clk(clk), .rst(rst), .start(start_l3), .done(done_l3),
         .input_rdaddr(l2_output_rdaddr_l3), .input_q(l2_output_q_l3),

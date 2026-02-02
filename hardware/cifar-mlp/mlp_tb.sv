@@ -6,6 +6,8 @@ module mlp_tb;
     // Parameters
     localparam DATA_WIDTH = 16;
     localparam L3_OUTPUT_DEPTH = 10;
+    localparam VEC = 16;
+    localparam L3_OUTPUT_VEC_DEPTH = (L3_OUTPUT_DEPTH + VEC - 1) / VEC;
     localparam CLK_PERIOD = 10;
 
     // Signals
@@ -16,6 +18,7 @@ module mlp_tb;
     logic [DATA_WIDTH-1:0] final_output_data [L3_OUTPUT_DEPTH-1:0];
     logic [$clog2(L3_OUTPUT_DEPTH)-1:0] output_class;
     real max_val_real;
+    logic [VEC*DATA_WIDTH-1:0] packed_word;
 
     // Instantiate the MLP
     mlp #(
@@ -60,8 +63,15 @@ module mlp_tb;
         wait(done);
 
         // Read output data from the final BRAM
-        for (int i = 0; i < L3_OUTPUT_DEPTH; i++) begin
-            final_output_data[i] = uut.l3_output_bram_inst.mem[i];
+        for (int w = 0; w < L3_OUTPUT_VEC_DEPTH; w++) begin
+            packed_word = uut.l3_output_bram_inst.mem[w];
+            for (int lane = 0; lane < VEC; lane++) begin
+                int idx;
+                idx = w * VEC + lane;
+                if (idx < L3_OUTPUT_DEPTH) begin
+                    final_output_data[idx] = packed_word[lane*DATA_WIDTH +: DATA_WIDTH];
+                end
+            end
         end
 
         // Calculate output_class in testbench
