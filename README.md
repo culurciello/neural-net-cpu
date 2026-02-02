@@ -5,130 +5,94 @@ A tiny company building the ultimate neural network AI processor
 ![](images/nncpu.jpg)
 
 
-## The plan
-
-What do you need to build a neural network AI processor?
-
-### technology node
-
-Select a integrated circuit technology node from [MOSIS](https://www.mosis2.com) MPW, for example GlobalFoundries Bulk CMOS 28nm.
-
-### libraries
-
-Will need a foundry design kit and a library of circuit components cells.
-
-### design tools
-
-Open source tools as in [Zero-ASIC](https://www.zeroasic.com).
-
-[Silicon Compiler](https://www.zeroasic.com/siliconcompiler) and its [github repo](https://github.com/siliconcompiler/siliconcompiler) and its [documentation](https://docs.siliconcompiler.com/en/latest/).
 
 
-### architecture
-
-See folder `architecture/`
-
-### software
-
-See folder `software/`
-
-### extras
-
-TBD
+## Example 1: CIFAR 
 
 
-## Installation
+### Software
 
-### Silicon tools
+- `model.py`: Defines the 3-layer MLP architecture using PyTorch.
+- `train.py`: Trains the MLP model on the CIFAR-10 dataset and saves the trained model to `cifar_mlp.pth`.
+- `demo.py`: A simple command-line demo that loads the trained model, shows a few test images, and prints the model's predictions.
+- `predict.py`: A Replicate-compatible predictor that takes an image and returns a prediction.
+- `replicate.yaml`: Configuration file for running this model on Replicate.
 
-Install [Yosis](https://github.com/YosysHQ/yosys).
+To train the model, run:
 
-Install Silicon Compiler:
-```
-pip install siliconcompiler
+```bash
+python train.py
 ```
 
+This will download the CIFAR-10 dataset, train the model for 5 epochs, and save the model to `cifar_mlp.pth`.
 
-Install Lemon from: https://github.com/The-OpenROAD-Project/lemon-graph
+To run the command-line demo, run:
 
-Install CUDD from: https://github.com/The-OpenROAD-Project/cudd
-
-```
-./configure
-make install
+```bash
+python demo.py
 ```
 
-```
-brew install boost swig cmake scip googletest spdlog fmt yaml-cpp eigen@3 libomp flex bison tcl-tk@8
-
-rm -rf build
-mkdir build
-
-TCL_PREFIX="/opt/homebrew/opt/tcl-tk@8"
-FLEX_PREFIX="/opt/homebrew/opt/flex"
-
-cmake -S . -B build \
-  -DCMAKE_BUILD_TYPE=Release \
-  -DTCL_LIBRARY="${TCL_PREFIX}/lib/libtcl8.6.dylib" \
-  -DTCL_HEADER="${TCL_PREFIX}/include/tcl.h" \
-  -DFLEX_INCLUDE_DIR="${FLEX_PREFIX}/include" \
-  -DCMAKE_CXX_FLAGS="-DBOOST_STACKTRACE_GNU_SOURCE_NOT_REQUIRED" \
-  -DCMAKE_C_FLAGS="-DBOOST_STACKTRACE_GNU_SOURCE_NOT_REQUIRED"
-cmake --build build -j12
-```
+This will load the trained model, show 4 random images from the test set, and print the ground truth and predicted labels.
 
 
-Version check fails
+### Hardware 
 
-modify:
 
-`nano /home/culurciello/.pyenv/versions/3.12.9/lib/python3.12/site-packages/siliconcompiler/tools/openroad/__init__.py`
+#### File Structure
 
-with:
+- `mlp.sv`: Top-level MLP module.
+- `layer.sv`: A generic fully connected layer.
+- `mac_unit.sv`: Multiply-Accumulate unit.
+- `relu.sv`: ReLU activation function.
+- `bram.sv`: A generic BRAM module.
+- `timescale.vh`: Timescale definition for simulation.
+- `mlp_tb.sv`: A testbench for the MLP.
+- `scripts/extract_weights.py`: A Python script to extract weights and biases from the trained PyTorch model.
+- `*.hex`: Hex files containing the weights, biases, and a dummy input for simulation.
 
-```
-    def parse_version(self, stdout):
-        # stdout will be in one of the following forms:
-        # - 1 08de3b46c71e329a10aa4e753dcfeba2ddf54ddd
-        # - 1 v2.0-880-gd1c7001ad
-        # - v2.0-1862-g0d785bd84
-        # - 26Q1-270 from EC? 
+#### Prerequisites
 
-        # strip off the "1" prefix if it's there
-        version = stdout.split()[-1]
-        #print(version)
-        #crap
+- Python 3.x
+- PyTorch
+- NumPy
+- A SystemVerilog simulator (e.g., Icarus Verilog, ModelSim, QuestaSim, Vivado Simulator).
+- Verilator (optional, for fast C++-based simulation).
 
-        pieces = version.split('-')
-        if len(pieces) > 1:
-            # strip off the hash in the new version style
-            #r='-'.join(pieces[:-1])
-            #print(r)
-            return '2.0-17598' #'-'.join(pieces[:-1])
-        else:
-            return '2.0-17598'  #pieces[0]
+#### How to Run
 
-    def normalize_version(self, version):
-        if '.' in version:
-            return '2.0-17598' #version.lstrip('v')
-        else:
-            return '2.0-17598'
+1. Weight Extraction
+
+The hardware model needs the weights and biases from the trained software model. These are extracted and converted to a fixed-point hexadecimal format.
+
+First, make sure you have the trained model file `software/cifar-mlp/cifar_mlp.pth`. If not, you need to run the training script in the `software/cifar-mlp` directory.
+
+To extract the weights, run the following command from the root of the project:
+
+```bash
+python hardware/cifar-mlp/scripts/extract_weights.py
 ```
 
-## Examples
+This will generate the `.hex` files for weights and biases in the `hardware/cifar-mlp` directory.
 
-### multi-layer perceptron network
 
-Compile example:
+2. Verilator simulation
 
+A simple Makefile is provided for Verilator builds that keeps generated files under `hardware/cifar-mlp/obj_dir`.
+
+From the project root:
+
+```bash
+make -C hardware/cifar-mlp
 ```
-python3 architecture/compile.py
+
+To run the simulation:
+
+```bash
+make -C hardware/cifar-mlp run
 ```
 
+To clean:
 
-
-
-
-# Acknowledgements
-
-Eugenio Culurciello, all rights reserved 2026
+```bash
+make -C hardware/cifar-mlp clean
+```

@@ -4,3 +4,6 @@ software/.DS_Store
 software/networks/.DS_Store
 architecture/.DS_Store
 .DS_Store
+hardware/cifar-mlp/obj_dir
+*.hex
+/software/cifar-mlp/data
